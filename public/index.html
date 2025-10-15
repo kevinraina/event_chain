@@ -1,0 +1,357 @@
+<!doctype html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <title>EventChain - Blockchain Ticketing System</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <style>
+      body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; max-width: 1200px; margin: 0 auto; padding: 20px; background: #f5f5f5; }
+      .header { background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; padding: 20px; border-radius: 10px; margin-bottom: 20px; }
+      .tabs { display: flex; margin-bottom: 20px; }
+      .tab { padding: 12px 24px; background: #e0e0e0; border: none; cursor: pointer; border-radius: 8px 8px 0 0; margin-right: 4px; }
+      .tab.active { background: white; border-bottom: 2px solid #667eea; }
+      .tab-content { display: none; background: white; padding: 20px; border-radius: 0 8px 8px 8px; box-shadow: 0 2px 10px rgba(0,0,0,0.1); }
+      .tab-content.active { display: block; }
+      .wallet-section { background: #f8f9fa; padding: 15px; border-radius: 8px; margin-bottom: 20px; }
+      .wallet-connected { color: #28a745; font-weight: bold; }
+      .wallet-disconnected { color: #dc3545; }
+      section { border: 1px solid #ddd; padding: 20px; margin-bottom: 20px; border-radius: 8px; background: white; }
+      input, button, select { padding: 12px; margin: 8px 0; width: 100%; border: 1px solid #ddd; border-radius: 6px; font-size: 14px; }
+      button { background: #667eea; color: white; border: none; cursor: pointer; font-weight: 500; }
+      button:hover { background: #5a6fd8; }
+      button:disabled { background: #ccc; cursor: not-allowed; }
+      img { max-width: 280px; border: 1px solid #ddd; border-radius: 8px; }
+      .row { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; }
+      .status { padding: 10px; border-radius: 6px; margin: 10px 0; }
+      .status.success { background: #d4edda; color: #155724; border: 1px solid #c3e6cb; }
+      .status.error { background: #f8d7da; color: #721c24; border: 1px solid #f5c6cb; }
+      .marketplace-item { border: 1px solid #ddd; padding: 15px; margin: 10px 0; border-radius: 8px; display: flex; justify-content: space-between; align-items: center; }
+      @media (max-width: 768px) { .row { grid-template-columns: 1fr; } .tabs { flex-wrap: wrap; } }
+    </style>
+  </head>
+  <body>
+    <div class="header">
+      <h1>🎫 EventChain - Blockchain Ticketing System</h1>
+      <p>Secure, transparent, and tamper-proof event tickets powered by blockchain</p>
+    </div>
+
+        <div class="wallet-section">
+          <div id="walletStatus" class="wallet-disconnected">🔴 Wallet not connected</div>
+          <button id="connectWallet" onclick="connectWallet()">Connect MetaMask</button>
+          <div id="walletAddress" style="margin-top: 10px; font-family: monospace; font-size: 12px;"></div>
+          <div style="margin-top: 10px; font-size: 12px; color: #666;">
+            <strong>Quick Setup:</strong><br>
+            1. MetaMask → Settings → Advanced → Enable "Show test networks"<br>
+            2. Network dropdown → "Localhost 8545" (or Add custom network)<br>
+            3. RPC: http://127.0.0.1:8545, Chain ID: 31337<br>
+            4. Import admin key: 0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80
+          </div>
+        </div>
+
+    <div class="tabs">
+      <button class="tab active" onclick="showTab('admin')">Admin Panel</button>
+      <button class="tab" onclick="showTab('marketplace')">Marketplace</button>
+      <button class="tab" onclick="showTab('mytickets')">My Tickets</button>
+      <button class="tab" onclick="showTab('scanner')">QR Scanner</button>
+    </div>
+
+    <!-- Admin Panel Tab -->
+    <div id="admin" class="tab-content active">
+      <section>
+        <h2>🎪 Create Event</h2>
+        <input id="name" placeholder="Event name" />
+        <input id="location" placeholder="Location" />
+        <input id="date" placeholder="Date (YYYY-MM-DD)" />
+        <input id="price" placeholder="Ticket price in ETH (e.g. 0.1)" />
+        <button onclick="createEventApi()">Create Event</button>
+        <div id="createEventMsg"></div>
+      </section>
+
+      <section>
+        <h2>🎫 Mint Ticket + QR</h2>
+        <input id="eventId" placeholder="Event ID (e.g. 0)" />
+        <input id="to" placeholder="Recipient address (auto-filled from wallet)" readonly />
+        <input id="uri" placeholder="Ticket metadata URI" />
+        <button onclick="mintTicketApi()">Mint Ticket</button>
+        <div id="mintMsg"></div>
+        <img id="qr" />
+      </section>
+    </div>
+
+    <!-- Marketplace Tab -->
+    <div id="marketplace" class="tab-content">
+      <section>
+        <h2>🛒 Marketplace</h2>
+        <div id="marketplaceList">
+          <p>Loading marketplace...</p>
+        </div>
+      </section>
+    </div>
+
+    <!-- My Tickets Tab -->
+    <div id="mytickets" class="tab-content">
+      <section>
+        <h2>🎟️ My Tickets</h2>
+        <div id="myTicketsList">
+          <p>Loading your tickets...</p>
+        </div>
+      </section>
+    </div>
+
+    <!-- QR Scanner Tab -->
+    <div id="scanner" class="tab-content">
+      <section>
+        <h2>📱 QR Scanner</h2>
+        <input id="scannerInput" placeholder="Paste QR code data or scan with camera" />
+        <button onclick="scanQR()">Scan QR Code</button>
+        <div id="scanResult"></div>
+      </section>
+      
+      <section>
+        <h2>✅ Validate Ticket</h2>
+        <input id="ticketIdValidate" placeholder="Token ID" />
+        <button onclick="validateTicketApi()">Validate Ticket</button>
+        <div id="validateMsg"></div>
+      </section>
+    </div>
+
+    <script>
+      let userAddress = null;
+      let userRole = 'user'; // 'admin' or 'user'
+
+      // Wallet Integration
+      async function connectWallet() {
+        if (typeof window.ethereum !== 'undefined') {
+          try {
+            const accounts = await window.ethereum.request({ method: 'eth_requestAccounts' });
+            userAddress = accounts[0];
+            document.getElementById('walletStatus').innerHTML = '🟢 Wallet connected';
+            document.getElementById('walletStatus').className = 'wallet-connected';
+            document.getElementById('walletAddress').textContent = userAddress;
+            document.getElementById('to').value = userAddress;
+            document.getElementById('connectWallet').textContent = 'Connected';
+            document.getElementById('connectWallet').disabled = true;
+            
+            // Check if user is admin (first account is admin)
+            if (userAddress.toLowerCase() === '0xf39fd6e51aad88f6f4ce6ab8827279cfffb92266') {
+              userRole = 'admin';
+              showTab('admin');
+            } else {
+              userRole = 'user';
+              showTab('marketplace');
+            }
+            
+            loadUserTickets();
+            loadMarketplace();
+          } catch (error) {
+            alert('Error connecting wallet: ' + error.message);
+          }
+        } else {
+          alert('MetaMask not installed! Please install MetaMask to use this app.');
+        }
+      }
+
+      // Tab Management
+      function showTab(tabName) {
+        // Hide all tabs
+        document.querySelectorAll('.tab-content').forEach(tab => tab.classList.remove('active'));
+        document.querySelectorAll('.tab').forEach(tab => tab.classList.remove('active'));
+        
+        // Show selected tab
+        document.getElementById(tabName).classList.add('active');
+        document.querySelector(`[onclick="showTab('${tabName}')"]`).classList.add('active');
+        
+        // Load tab-specific data
+        if (tabName === 'marketplace') loadMarketplace();
+        if (tabName === 'mytickets') loadUserTickets();
+      }
+
+      // Admin Functions
+      async function createEventApi() {
+        if (userRole !== 'admin') {
+          showMessage('createEventMsg', 'Only admins can create events', 'error');
+          return;
+        }
+        
+        const payload = {
+          name: document.getElementById('name').value,
+          location: document.getElementById('location').value,
+          date: document.getElementById('date').value,
+          ticketPriceEth: document.getElementById('price').value
+        };
+        
+        try {
+          const res = await fetch('/api/events', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) });
+          const data = await res.json();
+          showMessage('createEventMsg', data.ok ? 'Event created successfully!' : ('Error: ' + data.error), data.ok ? 'success' : 'error');
+        } catch (error) {
+          showMessage('createEventMsg', 'Error: ' + error.message, 'error');
+        }
+      }
+
+      async function mintTicketApi() {
+        if (userRole !== 'admin') {
+          showMessage('mintMsg', 'Only admins can mint tickets', 'error');
+          return;
+        }
+        
+        const payload = {
+          eventId: document.getElementById('eventId').value,
+          to: userAddress,
+          uri: document.getElementById('uri').value || 'https://example.com/ticket.json'
+        };
+        
+        try {
+          const res = await fetch('/api/tickets', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) });
+          const data = await res.json();
+          if (data.ok) {
+            showMessage('mintMsg', 'Ticket minted! Token ID: ' + data.tokenId, 'success');
+            document.getElementById('qr').src = data.qr;
+          } else {
+            showMessage('mintMsg', 'Error: ' + data.error, 'error');
+          }
+        } catch (error) {
+          showMessage('mintMsg', 'Error: ' + error.message, 'error');
+        }
+      }
+
+      // User Functions
+      async function loadMarketplace() {
+        // Simulate marketplace data
+        const marketplaceHTML = `
+          <div class="marketplace-item">
+            <div>
+              <h4>Concert Ticket #1</h4>
+              <p>Event: Blockchain Conference 2024</p>
+              <p>Price: 0.1 ETH</p>
+            </div>
+            <button onclick="buyTicket(1)">Buy Ticket</button>
+          </div>
+          <div class="marketplace-item">
+            <div>
+              <h4>VIP Ticket #2</h4>
+              <p>Event: Tech Summit 2024</p>
+              <p>Price: 0.2 ETH</p>
+            </div>
+            <button onclick="buyTicket(2)">Buy Ticket</button>
+          </div>
+        `;
+        document.getElementById('marketplaceList').innerHTML = marketplaceHTML;
+      }
+
+      async function loadUserTickets() {
+        if (!userAddress) {
+          document.getElementById('myTicketsList').innerHTML = '<p>Please connect your wallet to view tickets.</p>';
+          return;
+        }
+        
+        // Simulate user tickets
+        const ticketsHTML = `
+          <div class="marketplace-item">
+            <div>
+              <h4>My Ticket #1</h4>
+              <p>Event: Blockchain Conference 2024</p>
+              <p>Status: Valid, Not Used</p>
+            </div>
+            <div>
+              <button onclick="showQR(1)">Show QR</button>
+              <button onclick="sellTicket(1)">Sell Ticket</button>
+            </div>
+          </div>
+        `;
+        document.getElementById('myTicketsList').innerHTML = ticketsHTML;
+      }
+
+      // QR Scanner
+      async function scanQR() {
+        const qrData = document.getElementById('scannerInput').value;
+        if (!qrData) {
+          showMessage('scanResult', 'Please enter QR code data', 'error');
+          return;
+        }
+        
+        try {
+          const data = JSON.parse(qrData);
+          if (data.contract && data.tokenId) {
+            const res = await fetch(`/api/tickets/${data.tokenId}/status`);
+            const status = await res.json();
+            if (status.ok) {
+              showMessage('scanResult', `Ticket #${data.tokenId}: Used: ${status.isUsed}, Valid: ${status.isValid}`, 'success');
+            } else {
+              showMessage('scanResult', 'Error checking ticket: ' + status.error, 'error');
+            }
+          } else {
+            showMessage('scanResult', 'Invalid QR code format', 'error');
+          }
+        } catch (error) {
+          showMessage('scanResult', 'Error parsing QR code: ' + error.message, 'error');
+        }
+      }
+
+      async function validateTicketApi() {
+        const id = document.getElementById('ticketIdValidate').value;
+        if (!id) {
+          showMessage('validateMsg', 'Please enter a token ID', 'error');
+          return;
+        }
+        
+        try {
+          const res = await fetch('/api/tickets/' + id + '/validate', { method: 'POST' });
+          const data = await res.json();
+          showMessage('validateMsg', data.ok ? 'Ticket validated successfully!' : ('Error: ' + data.error), data.ok ? 'success' : 'error');
+        } catch (error) {
+          showMessage('validateMsg', 'Error: ' + error.message, 'error');
+        }
+      }
+
+      // Utility Functions
+      function showMessage(elementId, message, type) {
+        const element = document.getElementById(elementId);
+        element.textContent = message;
+        element.className = `status ${type}`;
+      }
+
+      function buyTicket(tokenId) {
+        alert(`Buying ticket #${tokenId} - This would integrate with your wallet for payment`);
+      }
+
+      function sellTicket(tokenId) {
+        alert(`Selling ticket #${tokenId} - This would open a sell dialog`);
+      }
+
+      function showQR(tokenId) {
+        alert(`QR Code for ticket #${tokenId} - This would display the QR code`);
+      }
+
+      // Initialize app
+      window.addEventListener('load', () => {
+        // Check if wallet is already connected
+        if (typeof window.ethereum !== 'undefined') {
+          window.ethereum.request({ method: 'eth_accounts' }).then(accounts => {
+            if (accounts.length > 0) {
+              userAddress = accounts[0];
+              document.getElementById('walletStatus').innerHTML = '🟢 Wallet connected';
+              document.getElementById('walletStatus').className = 'wallet-connected';
+              document.getElementById('walletAddress').textContent = userAddress;
+              document.getElementById('to').value = userAddress;
+              document.getElementById('connectWallet').textContent = 'Connected';
+              document.getElementById('connectWallet').disabled = true;
+              
+              if (userAddress.toLowerCase() === '0xf39fd6e51aad88f6f4ce6ab8827279cfffb92266') {
+                userRole = 'admin';
+              } else {
+                userRole = 'user';
+                showTab('marketplace');
+              }
+              
+              loadUserTickets();
+              loadMarketplace();
+            }
+          });
+        }
+      });
+    </script>
+  </body>
+  </html>
+
+

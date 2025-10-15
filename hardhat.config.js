@@ -17,8 +17,8 @@ module.exports = {
       gas: 2100000,
       gasPrice: 8000000000
     },
-    amoy: {
-      url: `https://polygon-amoy.g.alchemy.com/v2/${secret.projectId}`,
+    sepolia: {
+      url: `https://sepolia.infura.io/v3/${secret.projectId}`,
       accounts: [secret.accountPrivateKey]
     }
   }
